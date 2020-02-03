@@ -1,4 +1,4 @@
-from fundooapp import db
+from fundooapp import db, ma
 
 
 class User(db.Model):
@@ -29,3 +29,12 @@ class Notes(db.Model):
     def __repr__(self):
         return "<User('%s','%s', '%s', '%s', '%s', '%s')>" % (self.title, self.discription, self.color, self.is_archive,
                                                               self.is_deleted, self.is_trash)
+
+
+class NotesSchema(ma.Schema):
+    class Meta:
+        fields = ("id", "title", "discription", "color", "is_archive", "is_deleted", "is_trash")
+
+
+note_schema = NotesSchema()
+notes_schema = NotesSchema(many=True)

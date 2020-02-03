@@ -1,10 +1,21 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-</head>
-<body>
+{% extends "base.html" %}
 
-</body>
-</html>
+{% block content %}
+<div class="column is-4 is-offset-4">
+<h3 class="title">Upload</h3>
+<div class="box">
+    <h1>Upload Your Files</h1>
+
+    <form action="/upload-image" method="POST" enctype="multipart/form-data">
+
+        <label for="user_file">Upload Your File</label>
+        <br>
+        <input type="file" name="user_file">
+        <br>
+        <button type="submit">Upload</button>
+
+    </form>
+</div>
+</div>
+
+{% endblock %}
