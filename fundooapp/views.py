@@ -1,12 +1,14 @@
-from flask import jsonify, flash, request, render_template, url_for
-from flask_login import login_required, logout_user
+from authlib.integrations.flask_oauth2 import current_token
+from authlib.oauth2 import OAuth2Error
+from flask import jsonify, flash, request, render_template, url_for, session, redirect
+from flask_login import current_user
+from werkzeug.security import *
 from fundooapp import *
-from fundooapp.models import User, Notes, notes_schema, note_schema
-from flask import request, redirect
+from fundooapp.models import User, Notes, notes_schema, note_schema, db, User, OAuth2Client
 from werkzeug.utils import secure_filename
 import os
-from flask import request  # change
-
+from fundooapp.oauth2 import authorization, require_oauth
+import time
 
 app.config["IMAGE_UPLOADS"] = "/home/admin1/PycharmProjects/fundoonote_flask/fundooapp/image"
 app.config["ALLOWED_IMAGE_EXTENSIONS"] = ["JPEG", "JPG", "PNG", "GIF"]
@@ -64,27 +66,28 @@ def profile():
 
 
 @app.route('/login')
-def login():
+def login_form():
     return render_template('login.html')
 
 
-# @app.route("/login", methods=["GET", "POST"])
-# def login():
-#     response = {
-#         'success': False,
-#         'message': 'Something bad happened',
-#         'data': []
-#     }
-#
-#     if request.method == "POST":
-#         username = request.form["username"]
-#         password = request.form["password"]
-#
-#         # response['message'] = 'you are logged in now'
-#         # response = jsonify(response)
-#         return redirect(url_for('login'))
-#         login = User.query.filter_by(username=username, password=password).first()
-#     return response
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    response = {
+        'success': False,
+        'message': 'Something bad happened',
+        'data': []
+    }
+
+    if request.method == "POST":
+        email = request.form["email"]
+        password = request.form["password"]
+
+        response['message'] = 'you are logged in now'
+        response = jsonify(response)
+        # return redirect(url_for('login'))
+        login = User.query.filter_by(email=email, password=password).first()
+        print login
+    return response
 
 
 @app.route('/signup')
@@ -108,11 +111,11 @@ def signup():
 
     if user:
         flash('Email address already exists , You can login')
-        return redirect(url_for('signup'))
+        return redirect(url_for('login'))
 
     else:
         # create new user with the form data. Hash the password so plaintext version isn't saved.
-        new_user = User(email=email, username=username, password=password)
+        new_user = User(email=email, username=username, password=generate_password_hash(password, method='sha256'))
 
     # add the new user to the database
     db.session.add(new_user)
@@ -128,17 +131,9 @@ def signup():
 
 
 @app.route('/logout')
-@login_required
 def logout():
-    """
-    Handle requests to the /logout route
-    Log an employee out through the logout link
-    """
-    logout_user()
-    flash('You have successfully been logged out.')
-
-    # redirect to the login page
-    return redirect(url_for('login'))
+    del session['id']
+    return redirect('/home')
 
 
 class NotesListResource(Resource):
@@ -196,3 +191,95 @@ class NotesResource(Resource):
 
 
 api.add_resource(NotesResource, '/notes/<int:note_id>')
+
+
+@app.route('/home', methods=('GET', 'POST'))
+def home():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            user = User(username=username)
+            db.session.add(user)
+            db.session.commit()
+        session['id'] = user.id
+        return redirect('/')
+    user = current_user()
+    if user:
+        clients = OAuth2Client.query.filter_by(user_id=user.id).all()
+    else:
+        clients = []
+    return render_template('home.html', user=user, clients=clients)
+
+
+@app.route('/create_client', methods=('GET', 'POST'))
+def create_client():
+    user = current_user()
+    if not user:
+        return redirect('/')
+    if request.method == 'GET':
+        return render_template('create_client.html')
+
+    client_id = gen_salt(24)
+    client_id_issued_at = int(time.time())
+    client = OAuth2Client(
+        client_id=client_id,
+        client_id_issued_at=client_id_issued_at,
+        user_id=user.id,
+    )
+
+    if client.token_endpoint_auth_method == 'none':
+        client.client_secret = ''
+    else:
+        client.client_secret = gen_salt(48)
+
+    form = request.form
+    client_metadata = {
+        "client_name": form["client_name"],
+        "client_uri": form["client_uri"],
+        "grant_types": split_by_crlf(form["grant_type"]),
+        "redirect_uris": split_by_crlf(form["redirect_uri"]),
+        "response_types": split_by_crlf(form["response_type"]),
+        "scope": form["scope"],
+        "token_endpoint_auth_method": form["token_endpoint_auth_method"]
+    }
+    client.set_client_metadata(client_metadata)
+    db.session.add(client)
+    db.session.commit()
+    return redirect('/home')
+
+
+@app.route('/oauth/authorize', methods=['GET', 'POST'])
+def authorize():
+    user = current_user()
+    if request.method == 'GET':
+        try:
+            grant = authorization.validate_consent_request(end_user=user)
+        except OAuth2Error as error:
+            return error.error
+        return render_template('authorize.html', user=user, grant=grant)
+    if not user and 'username' in request.form:
+        username = request.form.get('username')
+        user = User.query.filter_by(username=username).first()
+    if request.form['confirm']:
+        grant_user = user
+    else:
+        grant_user = None
+    return authorization.create_authorization_response(grant_user=grant_user)
+
+
+@app.route('/oauth/token', methods=['POST'])
+def issue_token():
+    return authorization.create_token_response()
+
+
+@app.route('/oauth/revoke', methods=['POST'])
+def revoke_token():
+    return authorization.create_endpoint_response('revocation')
+
+
+@app.route('/api/me')
+@require_oauth('profile')
+def api_me():
+    user = current_token.user
+    return jsonify(id=user.id, username=user.username)
