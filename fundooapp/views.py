@@ -184,13 +184,45 @@ class NotesResource(Resource):
         return note_schema.dump(note)
 
     def delete(self, note_id):
-        post = Notes.query.get_or_404(note_id)
-        db.session.delete(post)
+        note = Notes.query.get_or_404(note_id)
+        db.session.delete(note)
         db.session.commit()
         return '', 204
 
 
 api.add_resource(NotesResource, '/notes/<int:note_id>')
+
+
+class NoteCollaborator(Resource):
+    def get(self, note_id):
+        note = Notes.query.get_or_404(note_id)
+        return note_schema.dump(note)
+
+    def put(self, note_id):
+        for id in user_id:
+            user = User.query.get_or_404(id)
+            for id in note_id:
+                note = Notes.query.get(id)
+        if note is not None:
+            # Add an association
+            user.tags.append(note)
+        # user = User.query.get_or_404(id)
+        # collaborate_user = User.query.filter(email=colla_email)
+        # print("userrrrrrrrrrrr", collaborate_user)
+        # user_id = []
+        # for id in collaborate_user:
+        #     user_id.append(id.id)
+        # coll_id = user_id[0]
+        # print("collaborator idddd", coll_id)
+        # note_instance = self.get(note_id=note_id)
+        # if colla_email:
+        #     print("data available in database", colla_email)
+        # note_instance.collaborate.add(int(coll_id))
+        # note_instance.save()
+        # return "note collaborated successfully"
+
+
+api.add_resource(NoteCollaborator, '/notes/collaborator/<int:note_id>')
 
 
 @app.route('/home', methods=('GET', 'POST'))
@@ -213,7 +245,7 @@ def home():
 
 
 @app.route('/create_client', methods=('GET', 'POST'))
-def create_client():
+def create_client(username=None):
     user = current_user()
     if not user:
         return redirect('/')

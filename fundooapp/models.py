@@ -1,4 +1,5 @@
 from fundooapp import db, ma
+from sqlalchemy.orm import relationship
 import time
 from authlib.integrations.sqla_oauth2 import (
     OAuth2ClientMixin,
@@ -60,6 +61,12 @@ class OAuth2Token(db.Model, OAuth2TokenMixin):
         return expires_at >= time.time()
 
 
+relationship_table = db.Table('relationship_table',
+                             db.Column('user_id', db.Integer, db.ForeignKey('User.id'), nullable=False),
+                             db.Column('note_id', db.Integer, db.ForeignKey('Notes.id'), nullable=False),
+                             db.PrimaryKeyConstraint('user_id', 'note_id'))
+
+
 class Notes(db.Model):
     __tablename__ = 'notes'
     id = db.Column(db.Integer, primary_key=True)
@@ -69,6 +76,7 @@ class Notes(db.Model):
     is_archive = db.Column(db.Boolean)
     is_deleted = db.Column(db.Boolean)
     is_trash = db.Column(db.Boolean)
+    collaborator = db.relationship('User', secondary=relationship_table, backref='User')
 
     def __repr__(self):
         return "<User('%s','%s', '%s', '%s', '%s', '%s')>" % (self.title, self.discription, self.color, self.is_archive,
@@ -82,3 +90,5 @@ class NotesSchema(ma.Schema):
 
 note_schema = NotesSchema()
 notes_schema = NotesSchema(many=True)
+
+
