@@ -4,13 +4,13 @@ from flask import jsonify, flash, request, render_template, url_for, session, re
 from flask_login import current_user
 from werkzeug.security import *
 from fundooapp import *
-from fundooapp.models import User, Notes, notes_schema, note_schema, db, User, OAuth2Client
+from fundooapp.models import User, Notes, notes_schema, note_schema, db, User
 from werkzeug.utils import secure_filename
 import os
-from fundooapp.oauth2 import authorization, require_oauth
+# from fundooapp.oauth2 import authorization, require_oauth
 import time
 
-app.config["IMAGE_UPLOADS"] = "/home/admin1/PycharmProjects/fundoonote_flask/fundooapp/image"
+app.config["IMAGE_UPLOADS"] = "/home/admin1/PycharmProjects/flask/fundoonote_flask/fundooapp/image"
 app.config["ALLOWED_IMAGE_EXTENSIONS"] = ["JPEG", "JPG", "PNG", "GIF"]
 
 
@@ -86,7 +86,7 @@ def login():
         response = jsonify(response)
         # return redirect(url_for('login'))
         login = User.query.filter_by(email=email, password=password).first()
-        print login
+        print(login)
     return response
 
 
@@ -194,124 +194,107 @@ api.add_resource(NotesResource, '/notes/<int:note_id>')
 
 
 class NoteCollaborator(Resource):
-    def get(self, note_id):
-        note = Notes.query.get_or_404(note_id)
-        return note_schema.dump(note)
 
     def put(self, note_id):
-        for id in user_id:
-            user = User.query.get_or_404(id)
-            for id in note_id:
-                note = Notes.query.get(id)
-        if note is not None:
-            # Add an association
-            user.tags.append(note)
-        # user = User.query.get_or_404(id)
-        # collaborate_user = User.query.filter(email=colla_email)
-        # print("userrrrrrrrrrrr", collaborate_user)
-        # user_id = []
-        # for id in collaborate_user:
-        #     user_id.append(id.id)
-        # coll_id = user_id[0]
-        # print("collaborator idddd", coll_id)
-        # note_instance = self.get(note_id=note_id)
-        # if colla_email:
-        #     print("data available in database", colla_email)
-        # note_instance.collaborate.add(int(coll_id))
-        # note_instance.save()
-        # return "note collaborated successfully"
+        notes = Notes.query.get_or_404(note_id)
+        user_id = request.json['collaborate']
+        print("userrrrrrr", user_id)
+        user = User.query.get(user_id)
+        notes.collaborator.append(user)
+        db.session.commit()
+        return "note collaborated"
 
 
 api.add_resource(NoteCollaborator, '/notes/collaborator/<int:note_id>')
 
 
-@app.route('/home', methods=('GET', 'POST'))
-def home():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        user = User.query.filter_by(username=username).first()
-        if not user:
-            user = User(username=username)
-            db.session.add(user)
-            db.session.commit()
-        session['id'] = user.id
-        return redirect('/')
-    user = current_user()
-    if user:
-        clients = OAuth2Client.query.filter_by(user_id=user.id).all()
-    else:
-        clients = []
-    return render_template('home.html', user=user, clients=clients)
-
-
-@app.route('/create_client', methods=('GET', 'POST'))
-def create_client(username=None):
-    user = current_user()
-    if not user:
-        return redirect('/')
-    if request.method == 'GET':
-        return render_template('create_client.html')
-
-    client_id = gen_salt(24)
-    client_id_issued_at = int(time.time())
-    client = OAuth2Client(
-        client_id=client_id,
-        client_id_issued_at=client_id_issued_at,
-        user_id=user.id,
-    )
-
-    if client.token_endpoint_auth_method == 'none':
-        client.client_secret = ''
-    else:
-        client.client_secret = gen_salt(48)
-
-    form = request.form
-    client_metadata = {
-        "client_name": form["client_name"],
-        "client_uri": form["client_uri"],
-        "grant_types": split_by_crlf(form["grant_type"]),
-        "redirect_uris": split_by_crlf(form["redirect_uri"]),
-        "response_types": split_by_crlf(form["response_type"]),
-        "scope": form["scope"],
-        "token_endpoint_auth_method": form["token_endpoint_auth_method"]
-    }
-    client.set_client_metadata(client_metadata)
-    db.session.add(client)
-    db.session.commit()
-    return redirect('/home')
-
-
-@app.route('/oauth/authorize', methods=['GET', 'POST'])
-def authorize():
-    user = current_user()
-    if request.method == 'GET':
-        try:
-            grant = authorization.validate_consent_request(end_user=user)
-        except OAuth2Error as error:
-            return error.error
-        return render_template('authorize.html', user=user, grant=grant)
-    if not user and 'username' in request.form:
-        username = request.form.get('username')
-        user = User.query.filter_by(username=username).first()
-    if request.form['confirm']:
-        grant_user = user
-    else:
-        grant_user = None
-    return authorization.create_authorization_response(grant_user=grant_user)
-
-
-@app.route('/oauth/token', methods=['POST'])
-def issue_token():
-    return authorization.create_token_response()
-
-
-@app.route('/oauth/revoke', methods=['POST'])
-def revoke_token():
-    return authorization.create_endpoint_response('revocation')
-
-
-@app.route('/api/me')
-@require_oauth('profile')
-def api_me():
-    user = current_token.user
-    return jsonify(id=user.id, username=user.username)
+# @app.route('/home', methods=('GET', 'POST'))
+# def home():
+#     if request.method == 'POST':
+#         username = request.form.get('username')
+#         user = User.query.filter_by(username=username).first()
+#         if not user:
+#             user = User(username=username)
+#             db.session.add(user)
+#             db.session.commit()
+#         session['id'] = user.id
+#         return redirect('/')
+#     user = current_user()
+#     if user:
+#         clients = OAuth2Client.query.filter_by(user_id=user.id).all()
+#     else:
+#         clients = []
+#     return render_template('home.html', user=user, clients=clients)
+#
+#
+# @app.route('/create_client', methods=('GET', 'POST'))
+# def create_client(username=None):
+#     user = current_user()
+#     if not user:
+#         return redirect('/')
+#     if request.method == 'GET':
+#         return render_template('create_client.html')
+#
+#     client_id = gen_salt(24)
+#     client_id_issued_at = int(time.time())
+#     client = OAuth2Client(
+#         client_id=client_id,
+#         client_id_issued_at=client_id_issued_at,
+#         user_id=user.id,
+#     )
+#
+#     if client.token_endpoint_auth_method == 'none':
+#         client.client_secret = ''
+#     else:
+#         client.client_secret = gen_salt(48)
+#
+#     form = request.form
+#     client_metadata = {
+#         "client_name": form["client_name"],
+#         "client_uri": form["client_uri"],
+#         "grant_types": split_by_crlf(form["grant_type"]),
+#         "redirect_uris": split_by_crlf(form["redirect_uri"]),
+#         "response_types": split_by_crlf(form["response_type"]),
+#         "scope": form["scope"],
+#         "token_endpoint_auth_method": form["token_endpoint_auth_method"]
+#     }
+#     client.set_client_metadata(client_metadata)
+#     db.session.add(client)
+#     db.session.commit()
+#     return redirect('/home')
+#
+#
+# @app.route('/oauth/authorize', methods=['GET', 'POST'])
+# def authorize():
+#     user = current_user()
+#     if request.method == 'GET':
+#         try:
+#             grant = authorization.validate_consent_request(end_user=user)
+#         except OAuth2Error as error:
+#             return error.error
+#         return render_template('authorize.html', user=user, grant=grant)
+#     if not user and 'username' in request.form:
+#         username = request.form.get('username')
+#         user = User.query.filter_by(username=username).first()
+#     if request.form['confirm']:
+#         grant_user = user
+#     else:
+#         grant_user = None
+#     return authorization.create_authorization_response(grant_user=grant_user)
+#
+#
+# @app.route('/oauth/token', methods=['POST'])
+# def issue_token():
+#     return authorization.create_token_response()
+#
+#
+# @app.route('/oauth/revoke', methods=['POST'])
+# def revoke_token():
+#     return authorization.create_endpoint_response('revocation')
+#
+#
+# @app.route('/api/me')
+# @require_oauth('profile')
+# def api_me():
+#     user = current_token.user
+#     return jsonify(id=user.id, username=user.username)

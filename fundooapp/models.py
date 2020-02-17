@@ -14,6 +14,8 @@ class User(db.Model):
     username = db.Column(db.String(25), unique=True, nullable=False)
     email = db.Column(db.String(25), unique=True, nullable=False)
     password = db.Column(db.String(), nullable=False)
+    # collaborator = db.relationship('Notes', secondary=collaborator, lazy='subquery',
+    #                        backref=db.backref('Notes', lazy=True))
 
     def __repr__(self):
         return "<User('%s','%s', '%s')>" % (self.username, self.email, self.password)
@@ -28,43 +30,44 @@ class User(db.Model):
         return password == 'valid'
 
 
-class OAuth2Client(db.Model, OAuth2ClientMixin):
-    __tablename__ = 'oauth2_client'
+# class OAuth2Client(db.Model, OAuth2ClientMixin):
+#     __tablename__ = 'oauth2_client'
+#
+#     id = db.Column(db.Integer, primary_key=True)
+#     user_id = db.Column(
+#         db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'))
+#     user = db.relationship('User')
+#
+#
+# class OAuth2AuthorizationCode(db.Model, OAuth2AuthorizationCodeMixin):
+#     __tablename__ = 'oauth2_code'
+#
+#     id = db.Column(db.Integer, primary_key=True)
+#     user_id = db.Column(
+#         db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'))
+#     user = db.relationship('User')
+#
+#
+# class OAuth2Token(db.Model, OAuth2TokenMixin):
+#     __tablename__ = 'oauth2_token'
+#
+#     id = db.Column(db.Integer, primary_key=True)
+#     user_id = db.Column(
+#         db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'))
+#     user = db.relationship('User')
+#
+#     def is_refresh_token_active(self):
+#         if self.revoked:
+#             return False
+#         expires_at = self.issued_at + self.expires_in * 2
+#         return expires_at >= time.time()
 
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(
-        db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'))
-    user = db.relationship('User')
 
+collaborator = db.Table('collaborator',
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id'), primary_key=True),
+    db.Column('note_id', db.Integer, db.ForeignKey('notes.id'), primary_key=True)
+)
 
-class OAuth2AuthorizationCode(db.Model, OAuth2AuthorizationCodeMixin):
-    __tablename__ = 'oauth2_code'
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(
-        db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'))
-    user = db.relationship('User')
-
-
-class OAuth2Token(db.Model, OAuth2TokenMixin):
-    __tablename__ = 'oauth2_token'
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(
-        db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'))
-    user = db.relationship('User')
-
-    def is_refresh_token_active(self):
-        if self.revoked:
-            return False
-        expires_at = self.issued_at + self.expires_in * 2
-        return expires_at >= time.time()
-
-
-relationship_table = db.Table('relationship_table',
-                             db.Column('user_id', db.Integer, db.ForeignKey('User.id'), nullable=False),
-                             db.Column('note_id', db.Integer, db.ForeignKey('Notes.id'), nullable=False),
-                             db.PrimaryKeyConstraint('user_id', 'note_id'))
 
 
 class Notes(db.Model):
@@ -76,16 +79,17 @@ class Notes(db.Model):
     is_archive = db.Column(db.Boolean)
     is_deleted = db.Column(db.Boolean)
     is_trash = db.Column(db.Boolean)
-    collaborator = db.relationship('User', secondary=relationship_table, backref='User')
+    collaborator = db.relationship('User', secondary=collaborator, lazy='dynamic',
+                           backref=db.backref('subscribers', lazy=True))
 
     def __repr__(self):
-        return "<User('%s','%s', '%s', '%s', '%s', '%s')>" % (self.title, self.discription, self.color, self.is_archive,
-                                                              self.is_deleted, self.is_trash)
+        return "<User('%s','%s', '%s', '%s', '%s', '%s', '%s')>" % (self.title, self.discription, self.color, self.is_archive,
+                                                              self.is_deleted, self.is_trash, self.collaborator)
 
 
 class NotesSchema(ma.Schema):
     class Meta:
-        fields = ("id", "title", "discription", "color", "is_archive", "is_deleted", "is_trash")
+        fields = ("id", "title", "discription", "color", "is_archive", "is_deleted", "is_trash", "collaborator")
 
 
 note_schema = NotesSchema()
