@@ -45,7 +45,7 @@ six==1.14.0
 SQLAlchemy==0.9.8
 toml==0.10.0
 tox==3.14.5
-urllib3==1.24.3
+urllib3==1.26.5
 virtualenv==20.0.4
 wcwidth==0.1.8
 Werkzeug==0.9.6
